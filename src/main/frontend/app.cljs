@@ -1,7 +1,10 @@
 (ns frontend.app
   (:require [uix.core :refer [defui $]]
-            [uix.dom])
-  )
+            [uix.dom]
+            ["@rjsf/core" :default Form]
+            ["@rjsf/validator-ajv8" :as validator]
+            ["@rjsf/utils" :refer [RJSFSchema]]
+            ))
 
 
 (defui button [{:keys [on-click children]}]
@@ -9,26 +12,19 @@
     children))
 
 (defui app []
-  (let [[state set-state!] (uix.core/use-state 0)]
-    ($ :<>
-      ($ button {:on-click #(set-state! dec)} "-")
-      ($ :span state)
-      ($ button {:on-click #(set-state! inc)} "+"))))
+  ($ Form {:schema #js {:title "Test Form" :type "string"}
+           :validator validator}))
 
 (defonce root
   (uix.dom/create-root (js/document.getElementById "root")))
 
 
-
-
-(defn init []
-  (println  "Hello, world!!!")
+(defn start []
   (uix.dom/render-root ($ app) root)
   )
 
+;; (init)
 
 (comment
-  (js/alert "Hello, world!!!")
   (+ 1 3 4)
-  (concat '(1 2) '(3 4))
   )

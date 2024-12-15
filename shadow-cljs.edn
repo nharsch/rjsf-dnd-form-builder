@@ -14,5 +14,5 @@
  :builds
  {:frontend
   {:target :browser
-   :modules {:main {:init-fn frontend.app/init}}
+   :modules {:main { :init-fn frontend.app/start }}
    }}}
