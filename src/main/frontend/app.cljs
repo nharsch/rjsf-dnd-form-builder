@@ -18,20 +18,20 @@
 
 (defonce state (r/atom default-state))
 
-
-
 (defn transform-3D-string [transform]
   (if transform
     (str "translate3d(" (.-x transform) "px, " (.-y transform) "px, 0")))
 
 
-(defui draggable-item [{:keys [id children]}]
-  (let [hook-ret (useDraggable #js {:id id})
+(defui draggable-item [{:keys [id type children]}]
+  (let [hook-ret (useDraggable #js {:id id :data #js {:type type}})
         attributes (.-attributes hook-ret)
         listeners (.-listeners hook-ret)
         set-node-ref (.-setNodeRef hook-ret)
         transform (.-transform hook-ret)
-        style {:position "relative" :transform (transform-3D-string transform)}]
+        style {:position "relative"
+               :transform (transform-3D-string transform)
+               :z-index (if (.-isDragging hook-ret) 1000 0)}]
     ($ :button (merge {
                        :ref set-node-ref
                        :style style
@@ -42,36 +42,44 @@
 
 
 (defui droppable [{:keys [id children]}]
-  (let [hook-ret (useDroppable #js {:id id})
+  (let [hook-ret (useDroppable #js {:id id })
         is-over (.-isOver hook-ret)
         set-node-ref (.-setNodeRef hook-ret)
         style {:color (if is-over "green" "black")
-               :height "100px"}]
+               :min-height "100px"}]
     ($ :div {:ref set-node-ref
              :style style}
        children)))
 
 
+;; I wish this was a built in
+;; TODO: move to utils
 (defn insert-at
   ([coll item]
    (vec (concat coll [item])))
   ([coll item idx]
    (vec (concat (take idx coll) [item] (drop idx coll)))))
 
-(comment
-  (insert-at [1 2 3] {:id "text" :type "text"})
-  (insert-at [1 2 3] {:id "text" :type "text"} 2)
-  (insert-at [1 2 3] {:id "text" :type "text"} 4)
-)
+(defn remove-by-id [coll id]
+  (vec (remove #(= (:id %) id) coll)))
 
+
+;; TODO should just be for canvas
 (defn add-component-to-canvas
   ([state component]
-   (add-component-to-canvas state component 0))
+   (add-component-to-canvas state component (count (:canvas-components state))))
   ([state component drop-target-id]
-   ;; insert component into canvas vector at drop-target-id
-   (let [new-components (insert-at (:canvas-components state) component drop-target-id)]
-     (assoc state :canvas-components new-components))))
-
+   ;; check if id exists in canvas components
+    (if (some #(= (:id %) (:id component)) (:canvas-components state))
+      ;; reorder
+      (let [new-components (-> state
+                               (:canvas-components)
+                               (remove-by-id (:id component))
+                               (insert-at component drop-target-id))]
+        (assoc state :canvas-components new-components))
+      ;; insert as if new
+      (let [new-components (insert-at (:canvas-components state) component drop-target-id)]
+        (assoc state :canvas-components new-components)))))
 
 (comment
   (add-component-to-canvas default-state {:id "text" :type "text"})
@@ -80,13 +88,21 @@
       (add-component-to-canvas {:id "text" :type "text"} 0))
   (add-component-to-canvas @state {:id "text" :type "text"} 0)
   (swap! state add-component-to-canvas {:id "text" :type "text"} 0)
-  (:canvas-components @state)
-  )
+  (:canvas-components @state))
+
 
 (defn onDragEnd [event]
-  ;; (js/console.log "onDragEnd" event)
-  (js/console.log (.. event -active -id))
-  (swap! state add-component-to-canvas {:id (rand-int 10) :type (.. event -active -id)} 0)
+  (js/console.log "onDragEnd" event)
+  (let [id (.. event -active -id)
+        over (.. event -over -id)
+        type (.. event -active -data -current -type)]
+    (if (= over "droppable")
+      (swap! state
+             ;; TODO: dedupe ids
+             add-component-to-canvas {:id (if (re-find #"toolbox-" id)
+                                            (str "canvas-" type "-" (rand-int 1000))
+                                            id)
+                                      :type type})))
   (println "state" (:canvas-components @state))
   )
 
@@ -97,12 +113,15 @@
        ($ :<>
           ($ :h1 "JSON Schema Form Builder")
           ($ DndContext {:onDragEnd onDragEnd}
-             ($ draggable-item {:id "text"} "text input")
+             ($ draggable-item {:id "toolbox-text" :type "text"} "text input")
              ($ droppable
                 {:id "droppable"}
                 (map-indexed
                  (fn [idx component]
-                   ($ :li {:id (:id component) :key idx} (:type component)))
+                   ($ :li {:key idx}
+                      ($ draggable-item {:id (:id  component)
+                                         :type (:type component) }
+                         (:id component))))
                  (:canvas-components state)
                  )
                 )
