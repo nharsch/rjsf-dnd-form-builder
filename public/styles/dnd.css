@@ -1,0 +1,33 @@
+.droppable {
+  padding: 20px;
+  border: 2px dashed #ccc;
+  border-radius: 4px;
+  min-height: 150px;
+  margin: 10px 0;
+}
+
+.draggable {
+  padding: 10px;
+  margin: 5px 0;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: move;
+  user-select: none;
+}
+
+.draggable:hover {
+  background-color: #f5f5f5;
+}
+
+/* Style for when item is being dragged */
+.dragging {
+  opacity: 0.5;
+  background-color: #e9ecef;
+}
+
+/* Style for when droppable area is active */
+.droppable-active {
+  border-color: #4299e1;
+  background-color: rgba(66, 153, 225, 0.1);
+} 
