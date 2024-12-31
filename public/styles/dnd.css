@@ -30,4 +30,13 @@
 .droppable-active {
   border-color: #4299e1;
   background-color: rgba(66, 153, 225, 0.1);
-} 
+}
+
+#canvas {
+  padding: 40px;
+  border: 2px dashed #ccc;
+}
+
+#toolbox {
+  padding: 20px;
+}

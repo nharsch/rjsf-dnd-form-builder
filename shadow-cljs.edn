@@ -18,6 +18,5 @@
    :modules {:main {:entries [frontend.app]
                     :init-fn frontend.app/start }}
    }
-   :css-modules {:frontend {:output-to "public/styles/dnd.css"}
-   }
-   }
+  }
+ }
