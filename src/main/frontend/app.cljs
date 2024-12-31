@@ -24,12 +24,15 @@
                                 horizontalListSortingStrategy]]
    ))
 
+(def toolbox-items [
+                    {:id "toolbox-text" :type "text"}
+                    {:id "toolbox-int" :type "int"}
+                    ])
 
 (def default-state {:canvas-components [{:id "canvas-text-1" :type "text"}
                                         {:id "canvas-text-2" :type "text"}]
                     :active-item nil
-                    :over-idx nil
-                    :over-item nil
+                    :over-canvas false
                     ;; :jsonSchema { :title "test form" :type "string" }
                     ;; :uiSchema {}
                     :data {}})
@@ -37,9 +40,7 @@
 (defonce state (r/atom default-state))
 
 (defn active-item-over-canvas [state]
-  (and (:active-item state)
-       (re-find #"toolbox" (:active-item state))
-       (re-find #"canvas" (:over-item state))))
+  (and (:active-item state) (:over-canvas state)))
 
 (defn transform-to-string [transform]
   (if transform
@@ -167,36 +168,50 @@
 
 (defn on-drag-over [event]
   ;; (js/console.log "on-drag-over" event)
-  (let [id (.. event -active -id)
-        over-item (.. event -over -id)
-        over-idx (goog.object/getValueByKeys event "over" "data" "current" "sortable" "index")]
+  ;; (js/console.log "drag event" event)
+  (let [
+        id (.. event -active -id)
+        over-container (goog.object/getValueByKeys event "over" "data" "current" "sortable" "containerId")
+        ]
                                         ; only update if toolbox is over canvas
-    (swap! state assoc :active-item id)
-    (if (and (re-find #"toolbox" id))
-      (swap! state assoc
-             :over-idx over-idx
-             :over-item over-item)))
-                                        ; TODO remove
-  (println "state" @state)
+    (cond (not= (:active-item @state) id)
+      (swap! state assoc :active-item id))
+    (let [over-canvas (active-item-over-canvas @state)]
+      (println "on-drag vars" over-canvas over-container id)
+      (cond (and (not over-canvas)
+                 over-container
+                 (re-find #"canvas" over-container))
+            (swap! state assoc :over-canvas true)
+            (and over-canvas
+                 (or
+                  (nil? over-container)
+                  (not (re-find #"canvas" over-container))))
+            (swap! state assoc :over-canvas false)
+            )))
+
+  ; TODO: remvoe
+  ;; (println "state" @state)
   )
+
+;; (first (filter (fn [item] (= (:id item) "toolbox-text")) toolbox-items))
 
 (defn on-drag-end [event]
   ;; (js/console.log "onDragEnd" event)
   (let [id (.. event -active -id)
-        over (.. event -over -id)
-        type (.. event -active -data -current -type)
+        toolbox-item (first (filter (fn [item] (= (:id item) id)) toolbox-items))
         ;; TODO: would be easier if the idx was passed in the data as key
+        toolbox-type (:type toolbox-item)
+        over-container (goog.object/getValueByKeys event "over" "data" "current" "sortable" "containerId")
         over-idx (or (goog.object/getValueByKeys event "over" "data" "current" "sortable" "index")
                      (count (:canvas-components @state)))]
     (js/console.log "drag end event" event)
-    (if (is-over-canvas over)
+    (if (is-over-canvas over-container)
       ;; TODO: create seperate add and move functions
       (cond (re-find #"toolbox" id)
             ;; add new item to canvas
-            (let [new-component {:id (str "canvas-" type "-" (rand-int 100)) :type type}
+            (let [new-component {:id (str "canvas-" toolbox-type "-" (rand-int 100)) :type toolbox-type}
                   new-components (add-component-to-canvas (:canvas-components @state) new-component over-idx)]
               (swap! state assoc :canvas-components new-components))
-
             (re-find #"canvas" id)
             ;; move item in canvas
             (let [current-idx (get-index-by-id (:canvas-components @state) id)
@@ -207,23 +222,22 @@
            update-in [:active-item] (fn [_] nil)))
   ;; (println "state" (:canvas-components @state))
   )
+(re-find #"toolbox" "toolbox-test")
 
 
 (defn calculate-current-items
   "Calculate the current items in the canvas based on canvas components and active item location"
   [state]
-  (let [canvas-components (:canvas-components state)
+  (let [
+        canvas-components (:canvas-components state)
         active-item (:active-item state)
         over-idx (:over-idx state)
-        over-item (:over-item state)
         ]
     (cond
-      ; only handle if active item is a toolbox item and over item is a canvas item
-      (and active-item (re-find #"toolbox-" active-item)
-           over-item (re-find #"canvas" over-item))
+      ; at dragging items to state items if over
+      (active-item-over-canvas state)
+      ; just stick item at the end
       (insert-at canvas-components {:id active-item} (or over-idx (count canvas-components)))
-      ;; (and active-item (re-find #"toolbox-" active-item))
-      ;; (insert-at canvas-components {:id active-item} 0)
       :else
       canvas-components)
     )
@@ -236,6 +250,12 @@
   )
 
 
+(comment
+  (as-> toolbox-items items
+    (remove (fn [item] (= (:id item) "toolbox-text")) items)
+    )
+  )
+
 (defui app []
   (let [
         state (urf/use-reaction state)
@@ -244,14 +264,15 @@
     (println "current-items" current-items)
     ($ :<>
        ($ :h1 "JSON Schema Form Builder")
-       ($ DndContext {:onDragEnd on-drag-end
+       ($ DndContext {
+                      :onDragEnd on-drag-end
                       :onDragOver on-drag-over
                       :collisionDetection closestCenter
                       :sensors (useSensors (useSensor PointerSensor))}
           ($ droppable-context {:id "toolbox"}
-             (if (not (active-item-over-canvas state))
-               ($ draggable-item {:id "toolbox-text" :type "text"} "text input"))
-             ($ draggable-item {:id "toolbox-int" :type "int"} "int input"))
+             (cond->> toolbox-items
+               (active-item-over-canvas state) (remove (fn [item] (= (:id item) (:active-item state))))
+               :always (map (fn [component] ($ draggable-item component (:type component))))))
           ($ SortableContext {:strategy verticalListSortingStrategy
                               :id "canvas"
                               :items (clj->js (map :id current-items))}
@@ -263,11 +284,7 @@
                       (:id component)))
                  current-items)
                 ))
-          ($ DragOverlay {}
-             (if (:active-item state)
-               ($ :div {:id (:active-item state)} (:id (:active-item state)))
-               nil)
-             ))
+          )
 
        ;; ($ Form {:schema (clj->js (:jsonSchema state)) :validator validator})
        ;; ($ Editor {:defaultLanguage "JSON"
