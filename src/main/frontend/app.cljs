@@ -20,9 +20,7 @@
    ["@dnd-kit/utilities" :refer [CSS]]
    ["@dnd-kit/sortable" :refer [useSortable
                                 SortableContext
-                                verticalListSortingStrategy
-                                horizontalListSortingStrategy]]
-   ))
+                                verticalListSortingStrategy]]))
 
 (def toolbox-items [
                     {:id "toolbox-text" :type "text"}
@@ -53,15 +51,12 @@
   ; insert after idx
   ([v item idx]
    (vec (concat (take idx v) [item] (drop idx v)))))
-
 (comment
   (= (insert-at [1 2 3] 4 1) [1 4 2 3])
-  (= (insert-at [1 2 3] 4 0) [4 1 2 3])
-  )
+  (= (insert-at [1 2 3] 4 0) [4 1 2 3]))
 
 (defn remove-at [v idx]
   (vec (concat (take idx v) (drop (inc idx) v))))
-
 (comment
   (= (remove-at [1 2 3] 1) [1 3])
   (= (remove-at [1 2 3] 0) [2 3])
@@ -72,14 +67,11 @@
     (-> v
         (remove-at from)
         (insert-at item to))))
-
-
 (comment
     (= (move-item [1 2 3] 0 2) [2 3 1])
     (= (move-item [1 2 3] 0 1) [2 1 3])
     (= (move-item [1 2 3] 2 0) [3 1 2])
-    (= (move-item [1 2 3] 1 1) [1 2 3])
-  )
+    (= (move-item [1 2 3] 1 1) [1 2 3]))
 
 (defn remove-by-id [coll id]
   (vec (remove #(= (:id %) id) coll)))
@@ -90,9 +82,7 @@
         (map-indexed vector coll)))
 (comment
     (get-index-by-id [{:id "1"} {:id "2"} {:id "3"}] "2")
-    (get-index-by-id [{:id "1"} {:id "2"} {:id "3"}] "4")
-
-  )
+    (get-index-by-id [{:id "1"} {:id "2"} {:id "3"}] "4"))
 
 (defui droppable-context [{:keys [id children]}]
   (let [hook-ret (useDroppable #js {:id id})
@@ -119,7 +109,7 @@
        children)))
 
 
-(defui sortable-item [{:keys [id type children]}]
+(defui sortable-item [{:keys [id key type children]}]
   (let [hook-ret (useSortable #js {:id id :data #js {:type type}})
         attributes (.-attributes hook-ret)
         listeners (.-listeners hook-ret)
@@ -131,16 +121,14 @@
                :transition transition
                :z-index (if (.-isDragging hook-ret) 1000 0)}]
     ($ :div (merge {:ref set-node-ref
-                       :style style
-                       :class "draggable"}
+                    :style style
+                    :class "draggable"
+                    :key key
+                    }
                       (js->clj listeners)
                       (js->clj attributes))
        children)))
 
-;; TODO: refactor
-;; - remove updating state
-;; - add component to canvas
-;; - move component in canvas
 
 (defn move-component-in-canvas
   [components active-idx drop-target-idx]
@@ -167,17 +155,14 @@
 
 
 (defn on-drag-over [event]
-  ;; (js/console.log "on-drag-over" event)
-  ;; (js/console.log "drag event" event)
   (let [
         id (.. event -active -id)
         over-container (goog.object/getValueByKeys event "over" "data" "current" "sortable" "containerId")
         ]
-                                        ; only update if toolbox is over canvas
+    ; change active item to the one in hand
     (cond (not= (:active-item @state) id)
       (swap! state assoc :active-item id))
     (let [over-canvas (active-item-over-canvas @state)]
-      (println "on-drag vars" over-canvas over-container id)
       (cond (and (not over-canvas)
                  over-container
                  (re-find #"canvas" over-container))
@@ -186,14 +171,11 @@
                  (or
                   (nil? over-container)
                   (not (re-find #"canvas" over-container))))
-            (swap! state assoc :over-canvas false)
-            )))
-
+            (swap! state assoc :over-canvas false))))
   ; TODO: remvoe
-  ;; (println "state" @state)
+  (println "hover state" @state)
   )
 
-;; (first (filter (fn [item] (= (:id item) "toolbox-text")) toolbox-items))
 
 (defn on-drag-end [event]
   ;; (js/console.log "onDragEnd" event)
@@ -206,10 +188,10 @@
                      (count (:canvas-components @state)))]
     (js/console.log "drag end event" event)
     (if (is-over-canvas over-container)
-      ;; TODO: create seperate add and move functions
       (cond (re-find #"toolbox" id)
             ;; add new item to canvas
-            (let [new-component {:id (str "canvas-" toolbox-type "-" (rand-int 100)) :type toolbox-type}
+            (let [new-component {:id (str "canvas-" toolbox-type "-" (rand-int 100))
+                                 :type toolbox-type}
                   new-components (add-component-to-canvas (:canvas-components @state) new-component over-idx)]
               (swap! state assoc :canvas-components new-components))
             (re-find #"canvas" id)
@@ -220,81 +202,55 @@
     ;; clear active
     (swap! state
            update-in [:active-item] (fn [_] nil)))
-  ;; (println "state" (:canvas-components @state))
-  )
-(re-find #"toolbox" "toolbox-test")
+  (println "drop state" @state))
 
 
 (defn calculate-current-items
   "Calculate the current items in the canvas based on canvas components and active item location"
   [state]
-  (let [
-        canvas-components (:canvas-components state)
+  (let [canvas-components (:canvas-components state)
         active-item (:active-item state)
-        over-idx (:over-idx state)
-        ]
+        over-idx (:over-idx state)]
     (cond
-      ; at dragging items to state items if over
-      (active-item-over-canvas state)
-      ; just stick item at the end
-      (insert-at canvas-components {:id active-item} (or over-idx (count canvas-components)))
+      (and (active-item-over-canvas state)  ; over canvas
+           (not (some #(= % active-item) (map :id canvas-components))))  ; not already in components
+      (do
+        (println "calc new item" active-item canvas-components)
+        (insert-at canvas-components {:id active-item} (or over-idx (count canvas-components))))
       :else
-      canvas-components)
-    )
-  )
+      canvas-components)))
 
-(comment
-  (conj [{:id "canvas-text-1"} {:id "canvas-text-2"}] {:id "toolbox-text"})
-  (get-index-by-id (:canvas-components @state) "canvas-text-2")
-  (insert-at (:canvas-components @state) {:id "test"} 0)
-  )
-
-
-(comment
-  (as-> toolbox-items items
-    (remove (fn [item] (= (:id item) "toolbox-text")) items)
-    )
-  )
+(some #(= %  "canvas-text-1") (map :id (:canvas-components @state)))
 
 (defui app []
   (let [
         state (urf/use-reaction state)
         current-items (calculate-current-items state)
         ]
-    (println "current-items" current-items)
     ($ :<>
        ($ :h1 "JSON Schema Form Builder")
-       ($ DndContext {
-                      :onDragEnd on-drag-end
+       ($ DndContext {:onDragEnd on-drag-end
                       :onDragOver on-drag-over
                       :collisionDetection closestCenter
                       :sensors (useSensors (useSensor PointerSensor))}
+          ($ :span "Toolbox")
           ($ droppable-context {:id "toolbox"}
              (cond->> toolbox-items
-               (active-item-over-canvas state) (remove (fn [item] (= (:id item) (:active-item state))))
-               :always (map (fn [component] ($ draggable-item component (:type component))))))
+               (active-item-over-canvas state)
+               (remove (fn [item] (= (:id item) (:active-item state))))
+               :always
+               (map (fn [component] ($ draggable-item component (:type component))))))
+          ($ :span "Canvas")
           ($ SortableContext {:strategy verticalListSortingStrategy
                               :id "canvas"
                               :items (clj->js (map :id current-items))}
              ($ droppable-context {:id "canvas"}
-                (map-indexed
-                 (fn [idx component]
+                (map
+                 (fn [component]
                    ($ sortable-item
                       {:id (:id  component) :type (:type component) :key (:id component)}
                       (:id component)))
-                 current-items)
-                ))
-          )
-
-       ;; ($ Form {:schema (clj->js (:jsonSchema state)) :validator validator})
-       ;; ($ Editor {:defaultLanguage "JSON"
-       ;;            :defaultValue (-> state
-       ;;                              :jsonSchema
-       ;;                              clj->js
-       ;;                              js/JSON.stringify)
-       ;;            :height "90vh"})
-
-       )))
+                 current-items)))))))
 
 
 (defonce root
@@ -303,7 +259,3 @@
 
 (defn ^:dev/after-load start []
   (uix.dom/render-root ($ app) root))
-
-(comment
-  (start)
-  )
