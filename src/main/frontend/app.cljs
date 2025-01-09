@@ -100,14 +100,18 @@
    (map (fn [component] {(keyword (:id component)) (:json-schema component)}))
    (reduce conj)))
 
-(comment
-  (canvas-components->properties-map (:canvas-components @state))
-  )
-
-
 (defn canvas-components->required-vec [canvas-components]
-  ; TODO
-  [])
+    (->>
+     canvas-components
+     (filter #(get-in % [:json-schema :required]))
+     (map :id)
+     (map keyword)
+     (vec)))
+
+(defn state->ui-schema [state]
+  (->
+   {"ui:Order" (map :id (:canvas-components state))}
+    clj->js))
 
 
 (defn state->json-schema [state]
@@ -294,7 +298,7 @@
 
 (defn on-drag-over [event]
   (let [id (.. event -active -id)]
-    (js/console.log "onDragOver" event)
+    ;; (js/console.log "onDragOver" event)
     (cond (not= (:active-item @state) id)
           (swap! state assoc :active-item id))
     (let [current-over-canvas (active-item-over-canvas @state)]
@@ -318,7 +322,6 @@
                                  :json-schema (:jsonSchema toolbox-item)
                                  :type toolbox-type}
                   new-components (add-component-to-canvas (:canvas-components @state) new-component over-idx)]
-              (println "new components" new-components)
               (swap! state assoc :canvas-components new-components))
             (re-find #"canvas" id) ; TODO :else or explicitly check in components
             ;; move item in canvas
@@ -327,16 +330,21 @@
               (swap! state assoc :canvas-components new-components))))
     ;; clear active
     (swap! state
-           update-in [:active-item] (fn [_] nil)))
-  (js/console.log "onDragEnd jsonschema" (state->json-schema @state))
+           update-in [:active-item] (fn [_] nil)
+           update-in [:over-canvas] (fn [_] false)
+           ))
+  ;; (js/console.log "onDragEnd jsonschema" (state->json-schema @state))
   )
 
+(add-watch state :debug
+  (fn [key atom old-state new-state]
+    (println "State changed from" old-state "to" new-state)))
+
 (defui app []
-  (let [
-        state (urf/use-reaction state)
+  (let [state (urf/use-reaction state) ;; state is reframe atom
         current-items (calculate-current-items state)
         rjsf-schema (state->json-schema state)
-        ]
+        ui-schema (state->ui-schema state)]
     ($ :<>
        ($ :h1 "JSON Schema Form Builder")
        ($ :section {:id "app"}
@@ -365,9 +373,8 @@
                          (or  (:name component) (:id component))))
                     current-items))))
           ($ :div {:id "preview"}
-             ($ Form {:schema rjsf-schema :validator validator}))
+             ($ Form {:schema rjsf-schema :ui-schema ui-schema :validator validator}))
           ))))
-(get-in {:a {:b 1}} [:a :b])
 
 (defonce root
   (uix.dom/create-root (js/document.getElementById "root")))
