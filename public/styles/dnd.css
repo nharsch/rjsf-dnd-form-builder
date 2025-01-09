@@ -32,11 +32,27 @@
   background-color: rgba(66, 153, 225, 0.1);
 }
 
+#app {
+  display: flex;
+  min-width: 100vw;
+  /* justify-content: center; */
+  /* align-items: center; */
+  /* height: 100vh; */
+}
+
 #canvas {
-  padding: 40px;
+  padding: 20px;
   border: 2px dashed #ccc;
+  min-width: 40%;
 }
 
 #toolbox {
   padding: 20px;
+  min-width: 20%;
+}
+
+#preview {
+  padding: 20px;
+  border: 2px;
+  min-width: 40%;
 }
