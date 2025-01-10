@@ -25,64 +25,64 @@
 
 (def toolbox-form-components
   [{:id "stringInput"
-    :jsonSchema {:type "string"}
-    :uiSchema {:ui:cardTitle "Text"
+    :json-schema {:type "string"}
+    :ui-schema {:ui:cardTitle "Text"
                :ui:emptyValue ""
                :ui:widget "text"}}
    {:id "numberInput"
-    :jsonSchema {:type "number"}
-    :uiSchema {:ui:cardTitle "Number"
+    :json-schema {:type "number"}
+    :ui-schema {:ui:cardTitle "Number"
                :ui:widget "updown"}}
    {:id "textareaInput"
-    :jsonSchema {:type "string"}
-    :uiSchema {:ui:cardTitle "Text area"
+    :json-schema {:type "string"}
+    :ui-schema {:ui:cardTitle "Text area"
                :ui:widget "textarea"}}
    {:id "boolInput"
-    :jsonSchema {:type "boolean"
+    :json-schema {:type "boolean"
                  :oneOf [{:const true :title "Yes"}
                          {:const false :title "No"}]}
-    :uiSchema {:ui:cardTitle "Yes/No"
+    :ui-schema {:ui:cardTitle "Yes/No"
                :ui:widget "radio"}}
    {:id "singleSelectInput"
-    :jsonSchema {:type "array"
+    :json-schema {:type "array"
                  :uniqueItems true
                  :maxItems 1
                  :items {:type "string"
                          :title "Option"
                          :enum ["option 1" "option 2"]}}
-    :uiSchema {:ui:cardTitle "Select"
+    :ui-schema {:ui:cardTitle "Select"
                :ui:widget "select"}}
    {:id "multiSelectInput"
-    :jsonSchema {:type "array"
+    :json-schema {:type "array"
                  :uniqueItems true
                  :maxItems 99
                  :items {:type "string"
                          :title "Option"
                          :enum ["option 1" "option 2"]}}
-    :uiSchema {:ui:cardTitle "Multi select"
+    :ui-schema {:ui:cardTitle "Multi select"
                :ui:widget "select"}}
    {:id "secret"
-    :jsonSchema {:type "string"
+    :json-schema {:type "string"
                  :minLength 3}
-    :uiSchema {:ui:cardTitle "Password"
+    :ui-schema {:ui:cardTitle "Password"
                :ui:widget "password"}}
    {:id "date"
-    :jsonSchema {:type "string"
+    :json-schema {:type "string"
                  :format "date"}
-    :uiSchema {:ui:cardTitle "Date"}}
+    :ui-schema {:ui:cardTitle "Date"}}
    {:id "time"
-    :jsonSchema {:type "string"
+    :json-schema {:type "string"
                  :format "time"}
-    :uiSchema {:ui:cardTitle "Time"}}
+    :ui-schema {:ui:cardTitle "Time"}}
    {:id "address"
-    :jsonSchema {:type "object"
+    :json-schema {:type "object"
                  :required ["street1" "city" "state" "zipCode"]
                  :properties {:street1 {:type "string"}
                               :street2 {:type "string"}
                               :city {:type "string"}
                               :state {:type "string"}
                               :zipCode {:type "number"}}}
-    :uiSchema {:ui:cardTitle "Address"}}])
+    :ui-schema {:ui:cardTitle "Address"}}])
 
 
 (def toolbox-items [
@@ -109,21 +109,26 @@
      (vec)))
 
 (defn state->ui-schema [state]
-  (->
-   {"ui:Order" (map :id (:canvas-components state))}
-    clj->js))
+  (let [canvas-components (:canvas-components state)]
+    (clj->js
+     (merge
+      (reduce conj (map (fn [component] {(:id component) (:ui-schema component)}) canvas-components))
+      (merge {"ui:order" (map :id canvas-components)})))))
+
+(comment
+  (state->ui-schema {:canvas-components [{:id "test" :json-schema {:type "string"} :ui-schema {:ui:cardTitle "test"}}]})
+  )
+
 
 
 (defn state->json-schema [state]
   (let [canvas-components (:canvas-components state)]
-    (->
+    (clj->js
      {:title (:canvas-title state)
       :type "object"
       :description (:canvas-description state)
       :properties (canvas-components->properties-map canvas-components)
-      :required (canvas-components->required-vec canvas-components)}
-     clj->js
-     )))
+      :required (canvas-components->required-vec canvas-components)})))
 
 (defn active-item-over-canvas [state]
   (and (:active-item state) (:over-canvas state)))
@@ -257,12 +262,12 @@
     :else false))
 
 (defn create-new-component [toolbox-item]
-  {:id (str "canvas-" (:id toolbox-item))
-   :type (:id toolbox-item)}
-   :json-schema (:jsonSchema toolbox-item))
+  (assoc toolbox-item :id (str "canvas-" (:id toolbox-item) "-" (js/Date.now))))
 
-
-
+(comment
+  (create-new-component {:id "test" :json-schema {}})
+  (create-new-component (first toolbox-form-components))
+  )
 
 
 (defn calculate-current-items
@@ -275,7 +280,7 @@
       (and (active-item-over-canvas state)                       ; over canvas
            (not (id-in-components active-id canvas-components))) ; not already in components
       (let [active-item (get-item-by-id active-id toolbox-form-components)
-            item-name (get-in active-item [:uiSchema :ui:cardTitle])]
+            item-name (get-in active-item [:ui-schema :ui:cardTitle])]
         (insert-at canvas-components {:id active-id :name item-name} (or over-idx (count canvas-components))))
       :else
       canvas-components)))
@@ -285,8 +290,6 @@
                     :canvas-components []
                     :active-item nil
                     :over-canvas false
-                    ;; :jsonSchema { :title "test form" :type "string" }
-                    ;; :uiSchema {}
                     :data {}})
 
 (defonce state (r/atom default-state))
@@ -312,15 +315,12 @@
 (defn on-drag-end [event]
   (let [id (.. event -active -id)
         toolbox-item (first (filter #(= (:id %) id) toolbox-form-components))
-        toolbox-type (get-in toolbox-item [:uiSchema :ui:cardTitle])
         over-idx (or (goog.object/getValueByKeys event "over" "data" "current" "sortable" "index")
                      (count (:canvas-components @state)))
         canvas-components (:canvas-components @state)]
     (if (event-over-canvas event)
       (cond (not (id-in-components id canvas-components)) ; new item?
-            (let [new-component {:id (str "canvas-" toolbox-type "-" (rand-int 100))
-                                 :json-schema (:jsonSchema toolbox-item)
-                                 :type toolbox-type}
+            (let [new-component (create-new-component toolbox-item)
                   new-components (add-component-to-canvas (:canvas-components @state) new-component over-idx)]
               (swap! state assoc :canvas-components new-components))
             (re-find #"canvas" id) ; TODO :else or explicitly check in components
@@ -338,7 +338,11 @@
 
 (add-watch state :debug
   (fn [key atom old-state new-state]
-    (println "State changed from" old-state "to" new-state)))
+    ;; (println "State changed from" old-state "to" new-state)
+    (println "canvas components" (:canvas-components:ponents @state))
+    (println "new json schema" (state->json-schema @state))
+    (js/console.log "new ui schema" (state->ui-schema @state)))
+  )
 
 (defui app []
   (let [state (urf/use-reaction state) ;; state is reframe atom
@@ -359,7 +363,7 @@
                   (active-item-over-canvas state)
                   (remove (fn [item] (= (:id item) (:active-item state))))
                   :always
-                  (map (fn [component] ($ draggable-item component (get-in component [:uiSchema :ui:cardTitle]))))))
+                  (map (fn [component] ($ draggable-item component (get-in component [:ui-schema :ui:cardTitle]))))))
 
              ($ SortableContext {:strategy verticalListSortingStrategy
                                  :id "canvas"
