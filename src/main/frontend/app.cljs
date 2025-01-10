@@ -300,6 +300,7 @@
 (def default-state {:canvas-title "test title"
                     :canvas-description "test description"
                     :canvas-components []
+                    :form-data nil
                     :active-item nil
                     :over-canvas false
                     :data {}})
@@ -348,17 +349,20 @@
     (swap! state
            update-in [:active-item] (fn [_] nil)
            update-in [:over-canvas] (fn [_] false)
-           ))
-  ;; (js/console.log "onDragEnd jsonschema" (state->json-schema @state))
-  )
+           )))
+
+(defn on-form-change [event]
+  (swap! state assoc :form-data (.. event -formData)))
 
 (add-watch state :debug
   (fn [key atom old-state new-state]
     ;; (println "State changed from" old-state "to" new-state)
-    (println "canvas components" (:canvas-components:ponents @state))
-    (println "new json schema" (state->json-schema @state))
-    (js/console.log "new ui schema" (state->ui-schema @state)))
-  )
+    ;; (println "canvas components" (:canvas-components:ponents @state))
+    ;; (println "new json schema" (state->json-schema new-state))
+    ;; (js/console.log "new ui schema" (state->ui-schema new-state))
+    ;; (js/console.log "new form data" (:form-data new-state))
+    ))
+
 
 (defui app []
   (let [state (urf/use-reaction state) ;; state is reframe atom
@@ -394,9 +398,14 @@
                          ($ :span {:class-name "canvas-item-label"} (or  (:name component) (:id component)))
                          ($ :button {:onClick (on-delete (:id component)):class-name "delete"} "🗑")))
                     current-items))))
-          ($ :div {:id "preview"}
-             ($ Form {:schema rjsf-schema :ui-schema ui-schema :validator validator}))
-          ))))
+
+          ($ :section {:id "preview"}
+             ($ Form {:schema rjsf-schema :ui-schema ui-schema :validator validator :on-change on-form-change})
+             ($ Editor {:height "20rem" :defaultLanguage "json" :value (js/JSON.stringify rjsf-schema nil 2)})
+             ($ Editor {:height "20rem" :defaultLanguage "json" :value (js/JSON.stringify ui-schema nil 2)})
+             ($ Editor {:height "20rem" :defaultLanguage "json" :value (js/JSON.stringify (:form-data state) nil 2)} :readOnly true))
+          )
+       )))
 
 (defonce root
   (uix.dom/create-root (js/document.getElementById "root")))

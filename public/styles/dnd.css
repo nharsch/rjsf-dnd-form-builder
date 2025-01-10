@@ -75,18 +75,18 @@
 #canvas {
   padding: 20px;
   border: 2px dashed #ccc;
-  min-width: 40%;
+  min-width: 45%;
 }
 
 #toolbox {
   padding: 20px;
-  min-width: 20%;
+  min-width: 10%;
 }
 
 #preview {
-  padding: 20px;
+  margin: 0 20px;
   border: 2px;
-  min-width: 40%;
+  min-width: 45%;
 }
 
 .delete {
