@@ -22,6 +22,17 @@
                                 SortableContext
                                 verticalListSortingStrategy]]))
 
+(defui drag-indicator [props]
+  ($ :button props
+     ($ :svg {:xmlns "http://www.w3.org/2000/svg"
+              :width "24"
+              :height "24"
+              :fill "currentColor"
+              :class "mi-outline mi-drag-indicator"
+              :viewBox "0 0 24 24"}
+        ($ :path {:d "M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2m-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2m0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2"}))))
+
+
 
 (def toolbox-form-components
   [{:id "stringInput"
@@ -92,7 +103,6 @@
 
 
 
-()
 
 (defn canvas-components->properties-map [canvas-components]
   (->>
@@ -217,6 +227,7 @@
        children)))
 
 
+;; TODO: rename
 (defui sortable-item [{:keys [id key type children]}]
   (let [hook-ret (useSortable #js {:id id :data #js {:type type}})
         attributes (.-attributes hook-ret)
@@ -228,13 +239,14 @@
                :transform (transform-to-string transform)
                :transition transition
                :z-index (if (.-isDragging hook-ret) 1000 0)}]
-    ($ :div (merge {:ref set-node-ref
-                    :style style
-                    :class "draggable"
-                    :key key
-                    }
-                      (js->clj listeners)
-                      (js->clj attributes))
+    ($ :div {:ref set-node-ref
+             :class "sortable-item"
+             :style style
+             :key key}
+       ($ drag-indicator (merge
+                          {:class-name "sortable-handle"}
+                          (js->clj listeners)
+                          (js->clj attributes)))
        children)))
 
 
@@ -299,6 +311,10 @@
         over-container (goog.object/getValueByKeys event "over" "data" "current" "sortable" "containerId")]
     (some id-in-canvas? [over-id over-container])))
 
+(defn on-delete [id]
+  (fn [event]
+    (swap! state assoc :canvas-components (remove-by-id (:canvas-components @state) id))))
+
 (defn on-drag-over [event]
   (let [id (.. event -active -id)]
     ;; (js/console.log "onDragOver" event)
@@ -350,7 +366,8 @@
         rjsf-schema (state->json-schema state)
         ui-schema (state->ui-schema state)]
     ($ :<>
-       ($ :h1 "JSON Schema Form Builder")
+       ($ :section
+          ($ :h1 "JSON Schema Form Builder"))
        ($ :section {:id "app"}
           ($ DndContext {:onDragEnd on-drag-end
                          :onDragOver on-drag-over
@@ -374,7 +391,8 @@
                     (fn [component]
                       ($ sortable-item
                          {:id (:id  component) :type (:type component) :key (:id component)}
-                         (or  (:name component) (:id component))))
+                         ($ :span {:class-name "canvas-item-label"} (or  (:name component) (:id component)))
+                         ($ :button {:onClick (on-delete (:id component)):class-name "delete"} "🗑")))
                     current-items))))
           ($ :div {:id "preview"}
              ($ Form {:schema rjsf-schema :ui-schema ui-schema :validator validator}))

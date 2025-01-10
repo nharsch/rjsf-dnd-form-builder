@@ -9,6 +9,7 @@
 .draggable {
   padding: 10px;
   margin: 5px 0;
+
   background-color: white;
   border: 1px solid #ddd;
   border-radius: 4px;
@@ -19,6 +20,37 @@
 .draggable:hover {
   background-color: #f5f5f5;
 }
+
+.sortable-item {
+  container: flex;
+  padding: 10px;
+  margin: 5px 0;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.sortable-handle {
+  vertical-align: middle;
+  display: inline;
+  color: #666;
+  background-color: inherit;
+  cursor: move;
+  user-select: none;
+  border: none;
+  /* padding: 5px 0px 2px; */
+  margin: 0px 10px 0px 0px;
+}
+
+.canvas-item-label {
+  vertical-align: middle;
+  /* display: inline-block; */
+}
+
+.sortable-handle:hover {
+  background-color: #f5f5f5;
+}
+
 
 /* Style for when item is being dragged */
 .dragging {
@@ -55,4 +87,18 @@
   padding: 20px;
   border: 2px;
   min-width: 40%;
+}
+
+.delete {
+  /* inherit backround color from parent */
+  background-color: inherit;
+  vertical-align: middle;
+  cursor: pointer;
+  float: right;
+  border: 1px solid #ccc;
+  padding: 2px;
+}
+.delete:hover {
+  border: none;
+  background-color: #f5f5f5;
 }
