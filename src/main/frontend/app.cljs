@@ -309,6 +309,14 @@
                                                     component))
                                                 (:canvas-components @state)))))
 
+(defn on-required-change [id]
+  (fn [event]
+    (swap! state assoc :canvas-components (map (fn [component]
+                                                (if (= (:id component) id)
+                                                  (assoc-in component [:json-schema :required] (.. event -target -checked))
+                                                component))
+                                              (:canvas-components @state)))))
+
 (defui canvas-item [component]
   (let [id (:id component)
         type (get-in component [:json-schema :type])
@@ -332,9 +340,19 @@
                           (js->clj listeners)
                           (js->clj attributes)))
        ($ :<>
-          ($ :label "type") ($ :span type)
-          ($ :label "id") ($ :input {:class-name "canvas-item-label" :value id :onChange (on-id-change id)})
-          ($ :label "name") ($ :input {:class-name "canvas-item-label" :value name :onChange (on-name-change id)})
+          ($ :label "type")
+          ($ :span type)
+          ($ :label "id")
+          ($ :input {:class-name "canvas-item-label" :value id :onChange (on-id-change id)})
+          ($ :label "name")
+          ($ :input {:class-name "canvas-item-label" :value name :onChange (on-name-change id)})
+          ($ :label "required")
+          ($ :input {:type "checkbox"
+                     :name "required"
+                     :value (get-in component [:json-schema :required])
+                     :checked (get-in component [:json-schema :required])
+                     :onChange (on-required-change id)})
+
           ($ :button {:onClick (on-delete id) :class-name "delete"} "🗑")
           ))))
 
