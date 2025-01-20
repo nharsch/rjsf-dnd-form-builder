@@ -253,7 +253,6 @@
 (defn move-component-in-canvas
   [components active-idx drop-target-idx]
   (move-item components active-idx drop-target-idx))
-
 (comment
   (= (move-component-in-canvas [{:id "1"} {:id "2"} {:id "3"}] 0 2) [{:id "2"} {:id "3"} {:id "1"}])
   (= (move-component-in-canvas [{:id "1"} {:id "2"} {:id "3"}] 1 1) [{:id "1"} {:id "2"} {:id "3"}]))
@@ -261,7 +260,6 @@
 (defn add-component-to-canvas
   [components new-component drop-target-idx]
     (insert-at components new-component drop-target-idx))
-
 (comment
   (= (add-component-to-canvas [{:id "1"} {:id "2"} {:id "3"}] {:id "4"} 1) [{:id "1"} {:id "4"} {:id "2"} {:id "3"}]))
 
@@ -354,14 +352,21 @@
 (defn on-form-change [event]
   (swap! state assoc :form-data (.. event -formData)))
 
+(defn on-title-change [event]
+    (swap! state assoc :canvas-title (.. event -target -value)))
+
+(defn on-description-change [event]
+    (swap! state assoc :canvas-description (.. event -target -value)))
+
 (add-watch state :debug
   (fn [key atom old-state new-state]
-    ;; (println "State changed from" old-state "to" new-state)
+    (println "State changed from" old-state "to" new-state)
     ;; (println "canvas components" (:canvas-components:ponents @state))
     ;; (println "new json schema" (state->json-schema new-state))
     ;; (js/console.log "new ui schema" (state->ui-schema new-state))
     ;; (js/console.log "new form data" (:form-data new-state))
     ))
+
 
 
 (defui app []
@@ -372,25 +377,30 @@
     ($ :<>
        ($ :section
           ($ :h1 "JSON Schema Form Builder"))
+                ($ :input {:type "text"
+                           :value (:canvas-title state)
+                           :onChange on-title-change})
+                ;; TODO: this ought to be a textarea, but rjsf forms don't render line breaks https://github.com/rjsf-team/react-jsonschema-form/issues/2562
+                ($ :input {:type "text"
+                           :value (:canvas-description state)
+                           :onChange on-description-change})
        ($ :section {:id "app"}
           ($ DndContext {:onDragEnd on-drag-end
                          :onDragOver on-drag-over
                          :collisionDetection closestCenter
                          :sensors (useSensors (useSensor PointerSensor))}
-
              ($ droppable-context {:id "toolbox"}
-                ($ :span "Toolbox")
+                ($ :h2 "Toolbox")
                 (cond->> toolbox-form-components
                   (active-item-over-canvas state)
                   (remove (fn [item] (= (:id item) (:active-item state))))
                   :always
                   (map (fn [component] ($ draggable-item component (get-in component [:ui-schema :ui:cardTitle]))))))
-
              ($ SortableContext {:strategy verticalListSortingStrategy
                                  :id "canvas"
                                  :items (clj->js (map :id current-items))}
                 ($ droppable-context {:id "canvas"}
-                   ($ :span "Canvas")
+                   ($ :h2 "Canvas")
                    (map
                     (fn [component]
                       ($ sortable-item
@@ -400,6 +410,7 @@
                     current-items))))
 
           ($ :section {:id "preview"}
+             ($ :h2 "Preview")
              ($ Form {:schema rjsf-schema :ui-schema ui-schema :validator validator :on-change on-form-change})
              ($ Editor {:height "20rem" :defaultLanguage "json" :value (js/JSON.stringify rjsf-schema nil 2)})
              ($ Editor {:height "20rem" :defaultLanguage "json" :value (js/JSON.stringify ui-schema nil 2)})
