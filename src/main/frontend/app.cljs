@@ -447,12 +447,14 @@
                     (fn [component]
                       ($ canvas-item component))
                     current-items))))
-
           ($ :section {:id "preview"}
              ($ :h2 "Preview")
              ($ Form {:schema rjsf-schema :ui-schema ui-schema :validator validator :on-change on-form-change})
+             ($ :h3 "Schema")
              ($ Editor {:height "20rem" :defaultLanguage "json" :value (js/JSON.stringify rjsf-schema nil 2)})
+             ($ :h3 "UI Schema")
              ($ Editor {:height "20rem" :defaultLanguage "json" :value (js/JSON.stringify ui-schema nil 2)})
+             ($ :h3 "Form Data")
              ($ Editor {:height "20rem" :defaultLanguage "json" :value (js/JSON.stringify (:form-data state) nil 2)} :readOnly true))
           )
        )))
