@@ -227,27 +227,6 @@
        children)))
 
 
-;; TODO: rename
-(defui sortable-item [{:keys [id key type children]}]
-  (let [hook-ret (useSortable #js {:id id :data #js {:type type}})
-        attributes (.-attributes hook-ret)
-        listeners (.-listeners hook-ret)
-        set-node-ref (.-setNodeRef hook-ret)
-        transform (.-transform hook-ret)
-        transition (.-transition hook-ret)
-        style {:position "relative"
-               :transform (transform-to-string transform)
-               :transition transition
-               :z-index (if (.-isDragging hook-ret) 1000 0)}]
-    ($ :div {:ref set-node-ref
-             :class "sortable-item"
-             :style style
-             :key key}
-       ($ drag-indicator (merge
-                          {:class-name "sortable-handle"}
-                          (js->clj listeners)
-                          (js->clj attributes)))
-       children)))
 
 
 (defn move-component-in-canvas
@@ -259,13 +238,13 @@
 
 (defn add-component-to-canvas
   [components new-component drop-target-idx]
-    (insert-at components new-component drop-target-idx))
+  (insert-at components new-component drop-target-idx))
 (comment
   (= (add-component-to-canvas [{:id "1"} {:id "2"} {:id "3"}] {:id "4"} 1) [{:id "1"} {:id "4"} {:id "2"} {:id "3"}]))
 
 (defn id-in-canvas? [over]
   (cond
-    ; TODO: a little hacky, we should look at state for ids
+                                        ; TODO: a little hacky, we should look at state for ids
     (not over) false
     (re-find #"canvas" over) true
     ;; (re-find #"toolbox" over) false
@@ -313,6 +292,51 @@
 (defn on-delete [id]
   (fn [event]
     (swap! state assoc :canvas-components (remove-by-id (:canvas-components @state) id))))
+
+(defn on-id-change [id]
+    (fn [event]
+        (swap! state assoc :canvas-components (map (fn [component]
+                                                    (if (= (:id component) id)
+                                                    (assoc component :id (.. event -target -value))
+                                                    component))
+                                                (:canvas-components @state)))))
+
+(defn on-name-change [id]
+    (fn [event]
+        (swap! state assoc :canvas-components (map (fn [component]
+                                                    (if (= (:id component) id)
+                                                      (assoc-in component [:ui-schema :ui:title] (.. event -target -value))
+                                                    component))
+                                                (:canvas-components @state)))))
+
+(defui canvas-item [component]
+  (let [id (:id component)
+        type (get-in component [:json-schema :type])
+        name (get-in component [:ui-schema :ui:title])
+        hook-ret (useSortable #js {:id id :data #js {:type type}})
+        attributes (.-attributes hook-ret)
+        listeners (.-listeners hook-ret)
+        set-node-ref (.-setNodeRef hook-ret)
+        transform (.-transform hook-ret)
+        transition (.-transition hook-ret)
+        style {:position "relative"
+               :transform (transform-to-string transform)
+               :transition transition
+               :z-index (if (.-isDragging hook-ret) 1000 0)}]
+    ($ :div {:ref set-node-ref
+             :class "sortable-item"
+             :style style
+             :key key}
+       ($ drag-indicator (merge
+                          {:class-name "sortable-handle"}
+                          (js->clj listeners)
+                          (js->clj attributes)))
+       ($ :<>
+          ($ :label "type") ($ :span type)
+          ($ :label "id") ($ :input {:class-name "canvas-item-label" :value id :onChange (on-id-change id)})
+          ($ :label "name") ($ :input {:class-name "canvas-item-label" :value name :onChange (on-name-change id)})
+          ($ :button {:onClick (on-delete id) :class-name "delete"} "🗑")
+          ))))
 
 (defn on-drag-over [event]
   (let [id (.. event -active -id)]
@@ -403,10 +427,7 @@
                    ($ :h2 "Canvas")
                    (map
                     (fn [component]
-                      ($ sortable-item
-                         {:id (:id  component) :type (:type component) :key (:id component)}
-                         ($ :span {:class-name "canvas-item-label"} (or  (:name component) (:id component)))
-                         ($ :button {:onClick (on-delete (:id component)):class-name "delete"} "🗑")))
+                      ($ canvas-item component))
                     current-items))))
 
           ($ :section {:id "preview"}
